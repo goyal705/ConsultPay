@@ -146,7 +146,7 @@ Billing is synchronous and can be triggered three ways:
 
 - `POST /api/sessions/<id>/bill/`
 - the session page in the UI calls the bill endpoint every 15 seconds while the session is running
-- `python manage.py bill_sessions` bills every in-progress session (`--interval 30` keeps it running, handy as a Railway worker or cron)
+- `python manage.py bill_sessions` bills every in-progress session (`--interval 30` keeps it running, handy as a Render worker or cron job)
 
 Each call works out `completed_minutes = floor((now - started_at) / 60)` and charges minutes `billed_minutes + 1 … completed_minutes`, one at a time. After charging, if the remaining balance is less than one minute's rate, the session is ended by the system with reason `Insufficient balance`.
 
@@ -167,18 +167,22 @@ Example from the brief: rate ₹50, wallet ₹290 at start → after 5 minutes �
 - **Ledger.** Every credit/debit is a `WalletTransaction` with `balance_after`, so the balance can always be explained.
 - Cancellation (`cancelled`) is allowed by either participant any time before the session starts.
 
-## Deploying on Railway
+## Deploying on Render
 
-The repo already has `railway.json`, a `Procfile`, `.python-version` and `requirements.txt`.
+The repo has a Render Blueprint (`render.yaml`) that creates a Postgres database and the web service, plus `build.sh` for the build step.
 
 1. Push the repo to GitHub.
-2. On Railway: **New Project → Deploy from GitHub repo** and pick the repo.
-3. Add a **PostgreSQL** database to the project. In the web service's **Variables**, add `DATABASE_URL = ${{Postgres.DATABASE_URL}}`.
-4. Add `SECRET_KEY` (any long random string). `DEBUG` defaults to `false` on Railway.
-5. **Settings → Networking → Generate Domain.** The domain is picked up automatically from `RAILWAY_PUBLIC_DOMAIN` for `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS`. For a custom domain, add it to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` (with `https://`).
-6. Deploy. On start the service runs migrations and `collectstatic`, then starts gunicorn. Health check is `/healthz`.
+2. On Render: **New → Blueprint**, connect the repo and click **Apply**.
+3. That's it. Render creates the `consultpay-db` database, wires `DATABASE_URL`, generates `SECRET_KEY`, and runs `build.sh` (install, `collectstatic`, `migrate`) followed by gunicorn. Health check is `/healthz`.
 
-Optional: create a second service from the same repo with start command `python manage.py bill_sessions --interval 30` so sessions are billed even when nobody has the session page open.
+`DEBUG` defaults to `false` on Render, and the `*.onrender.com` hostname is picked up from `RENDER_EXTERNAL_HOSTNAME` for `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS`. For a custom domain, add it to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` (with `https://`).
+
+Manual setup without the Blueprint: create a Postgres instance, then a Python web service with build command `./build.sh`, start command `gunicorn config.wsgi --bind 0.0.0.0:$PORT`, and env vars `DATABASE_URL` (internal URL of the database), `SECRET_KEY`, `PYTHON_VERSION=3.11.9`.
+
+Notes:
+- Free web services sleep after inactivity, so the first request can take ~30-60s.
+- Free Postgres databases on Render expire after 30 days.
+- For billing without the session page open, add a Render Cron Job running `python manage.py bill_sessions` (paid plans) or a background worker running `python manage.py bill_sessions --interval 30`.
 
 ## Project layout
 

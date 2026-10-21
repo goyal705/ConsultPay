@@ -5,20 +5,18 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ON_RAILWAY = "RAILWAY_ENVIRONMENT" in os.environ
+ON_RENDER = "RENDER" in os.environ
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-me")
-DEBUG = os.environ.get("DEBUG", "false" if ON_RAILWAY else "true").lower() == "true"
+DEBUG = os.environ.get("DEBUG", "false" if ON_RENDER else "true").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
-if ON_RAILWAY:
-    ALLOWED_HOSTS.append("healthcheck.railway.app")
-railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
-if railway_domain:
-    ALLOWED_HOSTS.append(railway_domain)
-    CSRF_TRUSTED_ORIGINS.append(f"https://{railway_domain}")
+render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if render_host:
+    ALLOWED_HOSTS.append(render_host)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{render_host}")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
