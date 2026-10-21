@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · ConsultPay{% endblock %}
+{% block content %}
+{% if request.user.is_provider %}
+  <div class="grid">
+    <div class="card">
+      <h3>Your rate</h3>
+      <p class="big">₹{{ request.user.rate_per_minute }}<small>/min</small></p>
+    </div>
+    <div class="card">
+      <h3>Earned (billed so far)</h3>
+      <p class="big">₹{{ sessions|selectattr('provider_id', 'equalto', request.user.pk)|sum(attribute='billed_amount') }}</p>
+    </div>
+  </div>
+{% else %}
+  <div class="grid">
+    <div class="card">
+      <h3>Wallet balance</h3>
+      <p class="big">₹{{ wallet.balance }}</p>
+      <form method="post" action="{{ url('web:recharge') }}" class="inline">
+        {{ csrf_input }}
+        <input type="number" name="amount" step="0.01" min="1" placeholder="Amount" required>
+        <button class="btn">Recharge</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Book a session</h3>
+      {% if book_form.fields.provider.queryset %}
+      <form method="post" action="{{ url('web:session_create') }}" class="inline">
+        {{ csrf_input }}
+        <select name="provider" required>
+          {% for p in book_form.fields.provider.queryset %}
+            <option value="{{ p.pk }}">{{ p.username }} - ₹{{ p.rate_per_minute }}/min</option>
+          {% endfor %}
+        </select>
+        <button class="btn">Request</button>
+      </form>
+      <p class="muted">You need at least 5 minutes worth of balance to start.</p>
+      {% else %}
+      <p class="muted">No providers registered yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Recharges</h3>
+    <table>
+      <thead><tr><th>Reference</th><th>Amount</th><th>Status</th><th>Created</th><th>Mock gateway</th></tr></thead>
+      <tbody>
+      {% for r in recharges %}
+        <tr>
+          <td class="mono">{{ r.reference[:12] }}…</td>
+          <td>₹{{ r.amount }}</td>
+          <td><span class="status status-{{ r.status }}">{{ r.status }}</span></td>
+          <td>{{ r.created_at|localtime }}</td>
+          <td>
+            <form method="post" action="{{ url('web:recharge_callback', r.reference) }}" class="inline">
+              {{ csrf_input }}
+              <button class="btn small" name="status" value="success">Send success</button>
+              {% if r.status == 'pending' %}
+              <button class="btn small danger" name="status" value="failed">Send failure</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted">No recharges yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted">"Send success" can be pressed again to replay the callback; the wallet is only credited once.</p>
+  </div>
+{% endif %}
+
+<div class="card">
+  <h3>Sessions</h3>
+  {% include "_sessions_table.html" %}
+</div>
+
+{% if not request.user.is_provider %}
+<div class="card">
+  <h3>Wallet history</h3>
+  <table>
+    <thead><tr><th>When</th><th>Description</th><th>Amount</th><th>Balance after</th></tr></thead>
+    <tbody>
+    {% for t in transactions %}
+      <tr>
+        <td>{{ t.created_at|localtime }}</td>
+        <td>{{ t.description }}</td>
+        <td class="{{ 'credit' if t.kind == 'credit' else 'debit' }}">{{ '+' if t.kind == 'credit' else '-' }}₹{{ t.amount }}</td>
+        <td>₹{{ t.balance_after }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="muted">No transactions yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

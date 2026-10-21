@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ConsultPay{% endblock %}</title>
+  <link rel="stylesheet" href="{{ static('css/style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url('web:dashboard') }}">ConsultPay</a>
+    {% if request.user.is_authenticated %}
+      <div class="who">
+        <span>{{ request.user.username }} <span class="tag">{{ request.user.role }}</span></span>
+        <form method="post" action="{{ url('web:logout') }}">
+          {{ csrf_input }}
+          <button class="link">Logout</button>
+        </form>
+      </div>
+    {% endif %}
+  </header>
+
+  <main class="container">
+    {% for message in get_messages(request) %}
+      <div class="flash flash-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

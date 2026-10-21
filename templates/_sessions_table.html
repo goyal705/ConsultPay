@@ -1,0 +1,20 @@
+<table>
+  <thead>
+    <tr><th>#</th><th>User</th><th>Provider</th><th>Status</th><th>Rate</th><th>Billed</th><th>Created</th></tr>
+  </thead>
+  <tbody>
+  {% for s in sessions %}
+    <tr>
+      <td><a href="{{ url('web:session', s.pk) }}">#{{ s.pk }}</a></td>
+      <td>{{ s.user.username }}</td>
+      <td>{{ s.provider.username if s.provider else '-' }}</td>
+      <td><span class="status status-{{ s.status }}">{{ s.get_status_display() }}</span></td>
+      <td>{{ s.current_rate() or '-' }}</td>
+      <td>₹{{ s.billed_amount }} ({{ s.billed_minutes }} min)</td>
+      <td>{{ s.created_at|localtime }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">No sessions yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

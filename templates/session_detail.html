@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Session #{{ session.pk }} · ConsultPay{% endblock %}
+{% block content %}
+<p><a href="{{ url('web:dashboard') }}">&larr; Back</a></p>
+
+<div class="card">
+  <div class="row">
+    <h2>Session #{{ session.pk }}</h2>
+    <span class="status status-{{ session.status }}" id="status">{{ session.get_status_display() }}</span>
+  </div>
+
+  <ol class="steps">
+    {% for st in ['unassigned', 'assigned', 'accepted_by_provider', 'in_progress', 'completed'] %}
+      <li class="{{ 'done' if st == session.status else '' }}">{{ st }}</li>
+    {% endfor %}
+  </ol>
+
+  <dl class="details">
+    <dt>User</dt><dd>{{ session.user.username }}</dd>
+    <dt>Provider</dt><dd>{{ session.provider.username if session.provider else '-' }}</dd>
+    <dt>Rate</dt>
+    <dd>₹{{ session.current_rate() or '-' }}/min {% if session.rate_per_minute is none %}<span class="muted">(locked when the session starts)</span>{% endif %}</dd>
+    <dt>Started</dt><dd>{{ session.started_at|localtime }}</dd>
+    <dt>Ended</dt><dd>{{ session.ended_at|localtime }}</dd>
+    <dt>Elapsed</dt><dd id="elapsed">{{ session.elapsed_seconds() }}s</dd>
+    <dt>Billed</dt><dd><span id="billed-min">{{ session.billed_minutes }}</span> min / ₹<span id="billed-amt">{{ session.billed_amount }}</span></dd>
+    {% if is_owner %}<dt>Wallet</dt><dd>₹<span id="balance">{{ wallet.balance }}</span></dd>{% endif %}
+    {% if session.ended_by %}
+      <dt>Ended by</dt><dd>{{ session.ended_by }}{% if session.end_reason %} : {{ session.end_reason }}{% endif %}</dd>
+    {% endif %}
+  </dl>
+
+  {% if actions %}
+  <div class="actions">
+    {% for action in actions %}
+      <form method="post" action="{{ url('web:session_action', session.pk, action) }}">
+        {{ csrf_input }}
+        <button class="btn {{ 'danger' if action in ('cancel', 'end') else '' }}">{{ action|capitalize }}</button>
+      </form>
+    {% endfor %}
+    {% if session.is_active %}
+      <button class="btn secondary" id="bill-now">Run billing now</button>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if session.is_active %}
+    <p class="muted">Billing runs automatically every 15 seconds while this page is open. Each fully elapsed minute is charged once.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if session.is_active %}
+<script>
+  const startedAt = new Date("{{ session.started_at.isoformat() }}");
+  const billUrl = "{{ url('web:session_bill', session.pk) }}";
+  const csrf = "{{ csrf_token }}";
+  const el = (id) => document.getElementById(id);
+
+  function tick() {
+    const secs = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+    el("elapsed").textContent = `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  }
+
+  async function bill() {
+    const res = await fetch(billUrl, { method: "POST", headers: { "X-CSRFToken": csrf } });
+    if (!res.ok) return;
+    const data = await res.json();
+    el("billed-min").textContent = data.billed_minutes;
+    el("billed-amt").textContent = data.billed_amount;
+    if (data.balance !== null && el("balance")) el("balance").textContent = data.balance;
+    if (data.status !== "in_progress") window.location.reload();
+  }
+
+  el("bill-now").addEventListener("click", bill);
+  setInterval(tick, 1000);
+  setInterval(bill, 15000);
+  tick();
+</script>
+{% endif %}
+{% endblock %}
